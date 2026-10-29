@@ -1,6 +1,6 @@
 ## ภาพรวม
 
-ระบบเป็น Flask web app ที่รับไฟล์ CSV/Excel แล้วส่งเข้า "Hybrid Anomaly Detection Engine" ใน [anomaly_engine.py](../../../nt/anomaly_web/utils/anomaly_engine.py) ซึ่งตรวจ 3 มุมมอง แล้วออกรายงาน Excel ทาสีตามสถานะ
+ระบบเป็น Flask web app ที่รับไฟล์ CSV/Excel แล้วส่งเข้า "Hybrid Anomaly Detection Engine" ใน [anomaly_engine.py](utils/anomaly_engine.py) ซึ่งตรวจ 3 มุมมอง แล้วออกรายงาน Excel ทาสีตามสถานะ
 
 | ชั้นการตรวจ | เทียบกับอะไร | วิธี | ผลออกที่ |
 |---|---|---|---|
@@ -84,7 +84,7 @@ Q1 = 100, Q3 = 110, IQR = 10, mean = 106, k = 2
 - Pivot ข้อมูลเป็นตาราง แถว = dimensions ที่เลือก คอลัมน์ = งวด
 - แต่ละแถวเอา **งวดสุดท้าย** เป็นค่าปัจจุบัน งวดก่อนหน้าทั้งหมดเป็น history ส่งเข้ากติกาข้อ 1
 - คำนวณคอลัมน์เสริม `PREVIOUS_VALUE`, `DIFF_PREVIOUS`, `PCT_DIFF_PREVIOUS`, `PCT_CHANGE` (เทียบค่าเฉลี่ยอดีต)
-- ตอน export [anomaly_reporter.py](../../../nt/anomaly_web/utils/anomaly_reporter.py) จะ **ไล่ทาสีทุกช่อง** ไม่ใช่แค่งวดล่าสุด โดยเอาแต่ละงวดเป็นค่าปัจจุบัน และทุกงวดก่อนหน้ามันเป็น history (expanding window) ใช้กติกาเดิม
+- ตอน export [anomaly_reporter.py](utils/anomaly_reporter.py) จะ **ไล่ทาสีทุกช่อง** ไม่ใช่แค่งวดล่าสุด โดยเอาแต่ละงวดเป็นค่าปัจจุบัน และทุกงวดก่อนหน้ามันเป็น history (expanding window) ใช้กติกาเดิม
 - มีชั้นทาสีเพิ่มอีกแบบคือ **เทียบงวดก่อนหน้าตรง ๆ** ถ้า `PCT_DIFF_PREVIOUS` เกิน +10% ทาสีแดง ต่ำกว่า −10% ทาสีเหลือง ปิดได้ด้วย `highlight_previous_change`
 
 ### ภาพการเลือก history แบบ expanding window
@@ -216,7 +216,7 @@ Rolling  (window=3)    [         95 105 120]   3 ค่า   Q1=100   Q3=112.5  
 
 ข้อ 1 ไม่ใช่ขั้นตอน แต่เป็น **กติกา** (`detect_iqr_anomaly`) ที่ชั้นอื่นหยิบไปใช้ ข้อ 3 ไม่ได้เรียกฟังก์ชันนี้ตรง ๆ แต่เขียนเงื่อนไขชุดเดียวกันใหม่แบบ vectorized ด้วย `np.select` ต่างกันแค่ history มาจาก rolling window
 
-ลำดับที่ [audit_runner.py](../../../nt/anomaly_web/utils/audit_runner.py) รันคือ
+ลำดับที่ [audit_runner.py](utils/audit_runner.py) รันคือ
 
 ```
 df_clean (ข้อมูลที่ทำความสะอาดแล้ว ตัวเดียวกัน ส่งเข้าทุก step)
@@ -235,7 +235,7 @@ df_clean (ข้อมูลที่ทำความสะอาดแล้�
 - ทุก step **เป็นอิสระต่อกัน** ผลของ step ก่อนไม่ได้ป้อนเข้า step ถัดไป ปิดข้อ 3 ทิ้ง ข้อ 2 ก็ให้ผลเหมือนเดิม
 - `df_ts_log` ถูกส่งเข้า `add_crosstab_sheet` พร้อมคอมเมนต์ว่า "เพื่อช่วยทาสี" แต่ในฟังก์ชันไม่ได้ใช้พารามิเตอร์นั้นเลย สีในตาราง crosstab มาจากการคำนวณกติกาข้อ 1 ใหม่ทั้งหมด จึงอาจไม่ตรงกับ log ของข้อ 3
 
-## พารามิเตอร์ที่ปรับได้ ([anomaly_settings.py](../../../nt/anomaly_web/utils/anomaly_settings.py))
+## พารามิเตอร์ที่ปรับได้ ([anomaly_settings.py](utils/anomaly_settings.py))
 
 | ค่า | เริ่มต้น | ใช้ใน |
 |---|---|---|

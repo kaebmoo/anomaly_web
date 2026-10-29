@@ -33,7 +33,7 @@ Web-based interface สำหรับตรวจหา Anomaly ในข้อ
 
 ### 1. Clone repository
 ```bash
-cd /Users/seal/Documents/GitHub/nt/anomaly_web
+cd /Users/seal/Documents/GitHub/anomaly_web
 ```
 
 ### 2. สร้าง virtual environment
