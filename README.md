@@ -1,11 +1,14 @@
 # Anomaly Detection Web Application
 
-Web-based interface สำหรับตรวจหา Anomaly ในข้อมูลทางการเงิน โดยใช้ Hybrid Anomaly Detection Engine
+Web-based interface สำหรับตรวจหา Anomaly ในข้อมูลทางการเงิน โดยใช้ Hybrid Anomaly Detection Engine (IQR fence + Rolling Window + Isolation Forest)
+
+Repository: https://github.com/kaebmoo/anomaly_web
+รายละเอียดวิธีตรวจจับ พร้อมภาพประกอบ อ่านได้ที่ [HOW.md](HOW.md)
 
 ## 🎯 คุณสมบัติหลัก
 
 ### 1. **Upload & Auto-Detection**
-- รองรับไฟล์ CSV, Excel (.xlsx, .xls)
+- รองรับไฟล์ CSV, Excel (.xlsx, .xlsm) อัปโหลดหลายไฟล์พร้อมกันได้
 - รองรับทั้ง **Long Format** และ **Crosstab Format**
 - Auto-detect columns และแนะนำการตั้งค่า
 - แสดง preview ข้อมูล พร้อม statistics
@@ -31,9 +34,13 @@ Web-based interface สำหรับตรวจหา Anomaly ในข้อ
 
 ## 📦 Installation
 
+### ข้อกำหนด
+- Python 3.10 ถึง 3.12 (`requirements.txt` ปักเวอร์ชัน pandas/numpy ที่ยังไม่มี wheel สำหรับ 3.13 ขึ้นไป)
+
 ### 1. Clone repository
 ```bash
-cd /Users/seal/Documents/GitHub/anomaly_web
+git clone https://github.com/kaebmoo/anomaly_web.git
+cd anomaly_web
 ```
 
 ### 2. สร้าง virtual environment
@@ -49,10 +56,8 @@ venv\Scripts\activate  # สำหรับ Windows
 pip install -r requirements.txt
 ```
 
-### 4. สร้าง directories ที่จำเป็น
-```bash
-mkdir -p data/uploads data/outputs data/configs
-```
+### 4. Directories
+ไม่ต้องสร้างเอง แอปจะสร้าง `uploads/`, `outputs/`, `configs/`, `progress/` ให้อัตโนมัติตอนรันครั้งแรก โฟลเดอร์เหล่านี้อยู่ใน `.gitignore` แล้ว
 
 ## 🚀 การใช้งาน
 
@@ -62,7 +67,7 @@ mkdir -p data/uploads data/outputs data/configs
 python app.py
 ```
 
-เปิด browser ไปที่: `http://localhost:5000`
+เปิด browser ไปที่: `http://localhost:9000` (แอป bind ที่ `0.0.0.0:9000` เครื่องอื่นในวงเดียวกันเข้าถึงได้)
 
 ### ขั้นตอนการใช้งาน
 
@@ -90,7 +95,7 @@ python app.py
      - ✓ Time Series Analysis (แนะนำ)
      - ✓ Peer Group Analysis (ใช้เวลานาน)
    - **Parameters**:
-     - Rolling Window: 3-12 เดือน (default: 6)
+     - Rolling Window: 3-12 เดือน (default: 3)
      - Min History: 3-6 เดือน (default: 3)
 
 4. (Optional) บันทึก configuration เป็น template เพื่อใช้งานภายหลัง
@@ -181,7 +186,7 @@ HR,6001,Salary,100000,105000,103000
 ### **Parameters**
 
 - `crosstab_min_history`: จำนวนเดือนขั้นต่ำสำหรับ crosstab (default: 3)
-- `audit_ts_window`: Rolling window สำหรับ time series (default: 6)
+- `audit_ts_window`: Rolling window สำหรับ time series (default: 3)
 - `iqr_k`: ตัวคูณ IQR สำหรับ Time Series/Crosstab (default: 2.0; ค่าน้อย strict, ค่ามาก relaxed)
 - `min_change_ratio`: % เปลี่ยนแปลงขั้นต่ำก่อนเริ่มจับ anomaly (default: 0.10 = 10%)
 - `constant_change_ratio`: % เปลี่ยนแปลงขั้นต่ำเมื่อประวัติเดิมคงที่/IQR = 0 (default: 0.15 = 15%)
@@ -237,33 +242,33 @@ Crosstab Report จะเพิ่ม:
 
 ```
 anomaly_web/
-├── app.py                      # Flask application
+├── app.py                      # Flask application (port 9000)
 ├── config.py                   # Configuration settings
 ├── requirements.txt            # Python dependencies
 ├── README.md                   # เอกสารนี้
-├── utils/                      # Utilities
-│   ├── __init__.py
-│   ├── anomaly_engine.py       # Anomaly detection engine
-│   ├── anomaly_reporter.py     # Excel report generator
-│   ├── audit_runner.py         # Main audit runner
-│   ├── file_handler.py         # File management
-│   ├── data_analyzer.py        # Data analysis utilities
-│   ├── data_cleaning.py        # Date/value cleaning utilities
-│   └── config_manager.py       # Configuration management
+├── HOW.md                      # อธิบายอัลกอริทึมการตรวจจับ พร้อมภาพ
+├── QUICKSTART.md               # คู่มือเริ่มต้น 5 นาที
+├── SAMPLE_DATA.md              # อธิบายข้อมูลตัวอย่าง
+├── sample_data.py              # สร้างไฟล์ CSV ตัวอย่าง
+├── test_*.py                   # unit tests (รันด้วย python -m pytest)
+├── utils/
+│   ├── anomaly_engine.py       # IQR fence, Rolling Window, Isolation Forest
+│   ├── anomaly_settings.py     # ค่า default และ normalize ของ parameters
+│   ├── anomaly_reporter.py     # Excel report + cell highlighting
+│   ├── audit_runner.py         # Orchestrates the pipeline + progress
+│   ├── data_analyzer.py        # Auto-detect column types
+│   ├── data_cleaning.py        # Date/value parsing and cleaning
+│   ├── crosstab_converter.py   # Crosstab → Long format
+│   ├── csv_io.py               # CSV/Excel reader (auto sep/encoding)
+│   ├── file_handler.py         # Upload/output file management
+│   ├── config_manager.py       # Saved configuration templates
+│   └── main_audit.py           # CLI รุ่นเก่า (ไม่ได้ใช้โดย web app)
 ├── templates/                  # HTML templates
-│   ├── index.html
-│   ├── upload.html
-│   ├── preview.html
-│   ├── configure.html
-│   ├── process.html
-│   └── history.html
-├── static/                     # Static files (CSS, JS)
-│   ├── css/
-│   └── js/
-└── data/                       # Data storage
-    ├── uploads/                # Input files
-    ├── outputs/                # Output files
-    └── configs/                # Saved configurations
+├── static/                     # CSS, JS
+├── uploads/                    # Input files   (ignored by git)
+├── outputs/                    # Excel reports (ignored by git)
+├── configs/                    # Saved configs (ignored by git)
+└── progress/                   # Progress JSON (ignored by git)
 ```
 
 ## 🔧 Troubleshooting
@@ -277,8 +282,11 @@ pip install -r requirements.txt
 ### ปัญหา: "Permission denied"
 ```bash
 # ตรวจสอบ permissions ของ directories
-chmod -R 755 data/
+chmod -R 755 uploads outputs configs progress
 ```
+
+### ปัญหา: pip install ล้มเหลวตอน build pandas/numpy
+ใช้ Python 3.10 ถึง 3.12 สร้าง venv ใหม่ เช่น `python3.12 -m venv venv`
 
 ### ปัญหา: Peer Group ใช้เวลานานมาก
 - ปิดการใช้งาน Peer Group Analysis ในกรณีที่ข้อมูลมีขนาดใหญ่ (>100,000 rows)
@@ -329,5 +337,6 @@ chmod -R 755 data/
 ---
 
 **Version**: 1.0.0  
-**Last Updated**: 2024-11-19  
-**Author**: Pornthep (seal)
+**Last Updated**: 2026-10-29  
+**Author**: Pornthep (seal)  
+**Repository**: https://github.com/kaebmoo/anomaly_web

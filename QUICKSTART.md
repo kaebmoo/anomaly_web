@@ -5,7 +5,8 @@
 ### 1. ติดตั้ง Dependencies
 
 ```bash
-cd /Users/seal/Documents/GitHub/nt/anomaly_web
+git clone https://github.com/kaebmoo/anomaly_web.git
+cd anomaly_web
 pip install -r requirements.txt
 ```
 
@@ -18,7 +19,7 @@ python app.py
 ### 3. เปิด Browser
 
 ```
-http://localhost:5000
+http://localhost:9000
 ```
 
 ---
