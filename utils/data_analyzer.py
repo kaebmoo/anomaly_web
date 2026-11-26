@@ -10,9 +10,9 @@ from collections import Counter
 import re
 
 try:
-    from .data_cleaning import blank_mask, clean_numeric_series, numeric_bad_mask, parse_date_series
+    from .data_cleaning import THAI_MONTH_YEAR_PATTERN, blank_mask, clean_numeric_series, numeric_bad_mask, parse_date_series
 except ImportError:
-    from data_cleaning import blank_mask, clean_numeric_series, numeric_bad_mask, parse_date_series
+    from data_cleaning import THAI_MONTH_YEAR_PATTERN, blank_mask, clean_numeric_series, numeric_bad_mask, parse_date_series
 
 class DataAnalyzer:
     """วิเคราะห์และแนะนำ configuration อัตโนมัติ"""
@@ -150,8 +150,9 @@ class DataAnalyzer:
     
     def _is_date_column(self, series):
         """ตรวจสอบว่าเป็น column วันที่หรือไม่"""
-        sample = series.dropna().head(100).astype(str)
+        sample = series.dropna().head(100).astype(str).str.strip()
         date_patterns = [
+            THAI_MONTH_YEAR_PATTERN,  # ม.ค.69, มี.ค. 2569
             r'\d{4}-\d{2}-\d{2}',  # 2024-01-01
             r'\d{2}/\d{2}/\d{4}',  # 01/01/2024
             r'\d{2}\.\d{2}\.\d{4}', # 01.02.2024
@@ -173,9 +174,10 @@ class DataAnalyzer:
     
     def _detect_date_format(self, series):
         """ตรวจหา date format"""
-        sample = series.dropna().head(10).astype(str)
+        sample = series.dropna().head(10).astype(str).str.strip()
         
         formats = {
+            THAI_MONTH_YEAR_PATTERN: 'thai_month_year',
             r'\d{4}-\d{2}-\d{2}': '%Y-%m-%d',
             r'\d{2}/\d{2}/\d{4}': '%d/%m/%Y',
             r'\d{2}\.\d{2}\.\d{4}': '%d.%m.%Y',
@@ -415,18 +417,20 @@ class DataAnalyzer:
         patterns = [
             r'\d{4}-\d{2}',      # 2024-01
             r'\d{4}/\d{2}',      # 2024/01
-            r'[A-Za-zก-ฮ]{3,}',  # Jan, ม.ค.
+            r'[A-Za-zก-ฮ]{3,}',  # Jan
+            THAI_MONTH_YEAR_PATTERN,  # ม.ค.69, มี.ค. 2569
             r'\d{1,2}',          # 1, 2, 3 (month or period)
         ]
         
+        # header จาก export มักมีช่องว่างหน้า/หลัง เช่น '    ม.ค.69 '
         for pattern in patterns:
-            if re.match(pattern, str(col_name)):
+            if re.match(pattern, str(col_name).strip()):
                 return True
         return False
     
     def _guess_date_format(self, col_name):
         """เดาว่า column เป็น format ใด"""
-        col_str = str(col_name)
+        col_str = str(col_name).strip()
         
         if re.match(r'\d{4}-\d{2}', col_str):
             return 'YYYY-MM'
@@ -434,7 +438,7 @@ class DataAnalyzer:
             return 'YYYY/MM'
         elif re.match(r'[A-Za-z]{3}', col_str):
             return 'Mon (Jan, Feb, ...)'
-        elif re.match(r'[ก-ฮ]{3,}', col_str):
+        elif re.match(THAI_MONTH_YEAR_PATTERN, col_str) or re.match(r'[ก-ฮ]{3,}', col_str):
             return 'Mon (ม.ค., ก.พ., ...)'
         elif re.match(r'\d{1,2}', col_str):
             return 'Sequential (1, 2, 3, ...)'

@@ -371,6 +371,13 @@ class AuditRunner:
                 f"(ลองเปลี่ยน Date Parse Mode ใน config)"
             )
         if policy == 'drop':
+            if bad_count == len(df):
+                # drop หมดทั้งไฟล์ = ไม่เหลือข้อมูลให้วิเคราะห์ แจ้งสาเหตุตรง ๆ ดีกว่าปล่อยไปพังใน engine
+                sample = df.get('PERIOD', df.get('DATE', pd.Series(dtype=object))).dropna().astype(str).unique()[:3]
+                raise ValueError(
+                    f"แปลงวันที่ไม่ได้เลยทั้ง {bad_count:,} แถว (ตัวอย่างค่า: {list(sample)}) "
+                    f"ตรวจรูปแบบหัวคอลัมน์เดือน/คอลัมน์วันที่ หรือเปลี่ยน Date Parse Mode"
+                )
             print(f"   ⚠️ Dropping {bad_count:,} rows with invalid dates.")
             return df.loc[~bad_mask].copy()
 

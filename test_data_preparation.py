@@ -10,7 +10,9 @@ import utils.anomaly_reporter as reporter_mod
 from utils.audit_runner import AuditRunner
 from utils.anomaly_engine import CrosstabGenerator
 from utils.anomaly_reporter import ExcelReporter
+from utils.crosstab_converter import CrosstabConverter
 from utils.data_analyzer import DataAnalyzer
+from utils.data_cleaning import parse_date_series
 
 
 def main():
@@ -49,6 +51,32 @@ def main():
     assert "จำนวนเงินในสกุลในปท." in value_names, value_names
     assert "บัญชี" not in value_names, value_names
     assert "เลขเอกสาร" not in value_names, value_names
+
+    # หัวคอลัมน์เดือนไทย + พ.ศ. 2 หลัก มีช่องว่างหน้า/หลัง (export จาก DW, cp874)
+    thai = parse_date_series(pd.Series(["    ม.ค.69 ", "มี.ค. 2569", "ธันวาคม 2568", "ก.ย.-69", "ไม่ใช่เดือน 69"]))
+    assert thai.dt.strftime("%Y-%m-%d").tolist()[:4] == ["2026-01-01", "2026-03-01", "2025-12-01", "2026-09-01"]
+    assert pd.isna(thai.iloc[4])
+
+    thai_csv = os.path.join(tmp, "thai_crosstab.csv")
+    thai_df = pd.DataFrame({
+        "GROUP": ["A", "B"],
+        "    ม.ค.69 ": ["1,000.00", "10.00"],
+        "    ก.พ.69 ": ["2,000.00", "20.00"],
+        "    มี.ค.69 ": ["3,000.00", "30.00"],
+    })
+    thai_df.to_csv(thai_csv, index=False, encoding="cp874")
+    assert DataAnalyzer()._looks_like_date_header("    ม.ค.69 ")
+    # long format: คอลัมน์ MONTH ที่เป็นเดือนไทยต้องถูกแนะนำเป็น date column (ไม่ใช่ dimension)
+    thai_long = pd.DataFrame({"GROUP": ["A"] * 4, "MONTH": ["    ม.ค.69 ", "    ก.พ.69 ", "    มี.ค.69 ", "    เม.ย.69 "], "VALUE": [1.0, 2.0, 3.0, 4.0]})
+    assert DataAnalyzer().analyze_dataframe(thai_long, input_mode="long")["recommendations"]["date_column"] == "MONTH"
+    clean = runner._prepare_data(thai_long, {"date_column": "MONTH", "target_col": "VALUE", "crosstab_dimensions": ["GROUP"]})
+    assert clean["__date_col__"].dt.strftime("%Y-%m").tolist() == ["2026-01", "2026-02", "2026-03", "2026-04"]
+    for mode in ["auto", "date", "sequential"]:
+        long_df = CrosstabConverter(thai_csv).convert(id_vars=["GROUP"], mode=mode)
+        clean = runner._prepare_data(long_df, {"target_col": "VALUE", "crosstab_dimensions": ["GROUP"]})
+        assert sorted(clean["__date_col__"].dt.strftime("%Y-%m").unique()) == ["2026-01", "2026-02", "2026-03"], mode
+        assert clean["VALUE"].sum() == 6060, mode
+        assert str(clean["VALUE"].dtype) == "float64", clean["VALUE"].dtype  # engine (np.select) รับ Float64 ไม่ได้
 
     report = CrosstabGenerator(pd.DataFrame({
         "GROUP": ["A", "A", "A", "A"],

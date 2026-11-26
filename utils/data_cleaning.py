@@ -20,6 +20,21 @@ BAD_VALUE_POLICIES = {"zero", "drop", "error"}
 BAD_DATE_POLICIES = {"drop", "error", "keep"}
 
 
+_THAI_MONTH_NAMES = [
+    ("ม.ค.", "มกราคม"), ("ก.พ.", "กุมภาพันธ์"), ("มี.ค.", "มีนาคม"), ("เม.ย.", "เมษายน"),
+    ("พ.ค.", "พฤษภาคม"), ("มิ.ย.", "มิถุนายน"), ("ก.ค.", "กรกฎาคม"), ("ส.ค.", "สิงหาคม"),
+    ("ก.ย.", "กันยายน"), ("ต.ค.", "ตุลาคม"), ("พ.ย.", "พฤศจิกายน"), ("ธ.ค.", "ธันวาคม"),
+]
+# key ตัดจุดออก จึงรับได้ทั้ง "ม.ค." "ม.ค" "มค" และชื่อเต็ม
+THAI_MONTHS = {
+    name.replace(".", ""): number
+    for number, names in enumerate(_THAI_MONTH_NAMES, start=1)
+    for name in names
+}
+# เดือนไทย + ปี 2 หรือ 4 หลัก เช่น "ม.ค.69", "มี.ค. 2569", "มกราคม-2569"
+THAI_MONTH_YEAR_PATTERN = r"([ก-๎.]+?)\s*[-/]?\s*(\d{4}|\d{2})"
+
+
 def blank_mask(series):
     text = series.astype("string").str.strip()
     return (
@@ -39,7 +54,8 @@ def clean_numeric_series(series):
     text = text.str.replace(r"^\((.*)\)$", r"-\1", regex=True)
     text = text.str.replace(r"[,\s$฿%]", "", regex=True)
     text = text.str.replace("\u00a0", "", regex=False)
-    return pd.to_numeric(text, errors="coerce")
+    # string dtype -> to_numeric ได้ Float64 (nullable) ซึ่ง np.select ใน engine รับ mask ที่มี pd.NA ไม่ได้
+    return pd.to_numeric(text, errors="coerce").astype("float64")
 
 
 def numeric_bad_mask(source, numeric):
@@ -62,6 +78,10 @@ def parse_date_series(series, mode="auto"):
         return pd.to_datetime(numeric, unit="D", origin="1899-12-30", errors="coerce")
 
     text = series.astype("string").str.strip()
+
+    # เดือนไทยไม่มี mode ไหน parse ได้ จึงเช็คก่อนเสมอไม่ว่าเลือก mode อะไร
+    if _pattern_ratio(text, THAI_MONTH_YEAR_PATTERN) >= 0.6:
+        return _parse_thai_month_year(text)
 
     format_by_mode = {
         "ymd": "%Y-%m-%d",
@@ -94,6 +114,19 @@ def parse_date_series(series, mode="auto"):
     default = pd.to_datetime(text, errors="coerce", dayfirst=False)
     dayfirst = pd.to_datetime(text, errors="coerce", dayfirst=True)
     return dayfirst if dayfirst.notna().sum() > default.notna().sum() else default
+
+
+def _parse_thai_month_year(text):
+    """'ม.ค.69' / 'มี.ค. 2569' / 'มกราคม 2569' -> วันที่ 1 ของเดือน (ค.ศ.), ที่ไม่เข้ารูปแบบเป็น NaT"""
+    parts = text.str.extract("^" + THAI_MONTH_YEAR_PATTERN + "$")
+    # float64 ธรรมดา (ไม่ใช่ nullable) เพื่อให้แถวที่ไม่เข้ารูปแบบกลายเป็น NaT แทนที่จะ throw
+    month = pd.to_numeric(parts[0].str.replace(".", "", regex=False).map(THAI_MONTHS), errors="coerce").astype("float64")
+    year = pd.to_numeric(parts[1], errors="coerce").astype("float64")
+    # ponytail: ปี 2 หลักที่มากับเดือนไทยถือเป็น พ.ศ. 25xx (69 -> 2569 -> 2026)
+    # ถ้าเจอไฟล์ที่ใช้ ค.ศ. 2 หลักกับเดือนไทย ค่อยเพิ่ม date_parse_mode แยก
+    year = year.where(year >= 100, year + 2500)
+    year = year.where(year < 2400, year - 543)
+    return pd.to_datetime(pd.DataFrame({"year": year, "month": month, "day": 1}), errors="coerce")
 
 
 def apply_date_grain(series, grain="month"):
